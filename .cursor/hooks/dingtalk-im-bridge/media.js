@@ -4,6 +4,7 @@ const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const config = require('./config');
+const { dwsSpawnOptions } = require('./resolve-dws-bin');
 
 const MEDIA_HINT =
   /\[图片\]|\[图片消息\]|\[Image\]|\[photo\]|发送了一张图片|图片消息|mediaId/i;
@@ -65,7 +66,8 @@ function listMessageById(conversationId, messageId) {
     '-f',
     'json',
   ]);
-  const result = spawnSync('dws', args, {
+  const { command, args: spawnArgs } = dwsSpawnOptions(args);
+  const result = spawnSync(command, spawnArgs, {
     cwd: config.aiWorkflowRoot,
     encoding: 'utf8',
     timeout: 60000,
@@ -110,7 +112,8 @@ function downloadResource({ resourceId, messageId, conversationId, outputDir }) 
     '--output',
     relOut || '.',
   ]);
-  const result = spawnSync('dws', args, {
+  const { command, args: spawnArgs } = dwsSpawnOptions(args);
+  const result = spawnSync(command, spawnArgs, {
     cwd: config.aiWorkflowRoot,
     encoding: 'utf8',
     timeout: 120000,

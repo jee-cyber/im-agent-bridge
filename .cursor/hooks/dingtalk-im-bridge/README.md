@@ -7,7 +7,7 @@
 | 项 | 行为 |
 |----|------|
 | 权限 | 仅本机你的钉钉 OAuth；回复 `--as user` |
-| 门禁 | 默认仅 **部门名含「云交付」**（可 env 改）且 **需求/DIP/开发类** 才回复；其它 @ 静默（`DINGTALK_GATE_CLOUD_DEPT=0` / `DINGTALK_GATE_WORK=0` 可关） |
+| 门禁 | **群聊**仅 `@我`；提问者部门须含 `DINGTALK_REPLY_DEPT`（默认「云交付」），否则 **静默**；正文含 **http(s) 链接** 时须 **全部** 为三项目相关（内网 Git、`codeup` 上 di-ai-dip/三项目仓、钉钉文档等），否则 **静默**（`DINGTALK_GATE_LINKS=0` 可关）；云交付内仅 **`AUTO_AGENT` 入队** 才回复（`DINGTALK_GATE_CLOUD_DEPT=0` 可关部门门禁） |
 | 新功能 | 缺 `YJ2RQ`/`RJ2RQ` 先索要；有编号 → Spec 落盘 → 澄清 → **自动编码** |
 | 群聊 | **允许自动编码**（有编号即可入队） |
 | 澄清 | 简单问题在原会话；**复杂**（≥3 问或 `complexClarify`）→ 单聊提问者 |

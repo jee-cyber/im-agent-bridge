@@ -9,9 +9,15 @@ function buildPrompt(job, opts = {}) {
     config.aiWorkflowRoot,
     '.cursor/hooks/dingtalk-im-bridge/pending-reply.json'
   );
+  const workflowAbs = job.workflowRel
+    ? path.join(config.aiWorkflowRoot, job.workflowRel)
+    : config.aiWorkflowRoot;
   const lines = [
     '【钉钉工单·FULL_AUTO】你必须在本回合内完成处理并写回执文件，不要等待用户确认。',
     `模型：${config.agentModel}（Composer 2.5 系）。`,
+    job.projectLabel
+      ? `项目：${job.projectLabel}（${job.project || 'yurun'}），优先工作区：${workflowAbs}`
+      : '',
     '',
     '```json',
     JSON.stringify(job, null, 2),

@@ -4,6 +4,18 @@ const path = require('path');
 
 const root = path.resolve(__dirname, '..', '..', '..');
 
+/**
+ * 解析允许自动回复的提问者部门名关键词（逗号/竖线分隔）。
+ * 部门名或 deptPathName 任一包含即视为「云交付相关部门」。
+ */
+function parseReplyDeptPatterns() {
+  const raw = process.env.DINGTALK_REPLY_DEPT || '云交付';
+  return raw
+    .split(/[,，|]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 function defaultCursorBin() {
   if (process.platform === 'win32') {
     const local = process.env.LOCALAPPDATA || '';
@@ -19,6 +31,7 @@ module.exports = {
   cursorBin: process.env.CURSOR_CLI || defaultCursorBin(),
   fullAuto: process.env.DINGTALK_FULL_AUTO !== '0',
   fullAutoTimeoutMs: Number(process.env.DINGTALK_AGENT_TIMEOUT_MS || 900000),
+  /** 钉钉 FULL_AUTO 调用 cursor-agent 的模型，默认 Composer 2.5（env: DINGTALK_AGENT_MODEL） */
   agentModel: process.env.DINGTALK_AGENT_MODEL || 'composer-2.5',
   cursorAgentBin: process.env.CURSOR_AGENT_BIN || '',
   dirs: {
@@ -32,15 +45,39 @@ module.exports = {
     directClarifyInPlace: true,
     /** 仅部门名匹配的提问者才自动回复（dws 通讯录）；关：DINGTALK_GATE_CLOUD_DEPT=0 */
     gateCloudDeliveryDept: process.env.DINGTALK_GATE_CLOUD_DEPT !== '0',
-    replyDeptPattern: process.env.DINGTALK_REPLY_DEPT || '云交付',
-    /** 须判定为开发/需求/DIP 类才回复；关：DINGTALK_GATE_WORK=0 */
+    /** 部门白名单关键词列表，默认「云交付」匹配云交付研发部等 */
+    replyDeptPatterns: parseReplyDeptPatterns(),
+    /** 须判定为开发/需求/DIP/排障类才回复；关：DINGTALK_GATE_WORK=0 */
     gateWorkOnly: process.env.DINGTALK_GATE_WORK !== '0',
+    /** 群聊仅处理 @我 事件（dws at-me）；单聊走 all-direct，同样过部门+业务门禁 */
+    groupAtMeOnly: true,
   },
   reqIdPattern: /(YJ2RQ|RJ2RQ)\d+/gi,
+  /** 云交付三项目：工作流根目录（相对 aiWorkflowRoot）与默认 Skills */
+  projects: {
+    yurun: {
+      label: '雨润',
+      workflowRel: 'yurun/ai-workflow',
+      defaultSkills: ['yurun-fullflow', 'yurun-dip-publish'],
+    },
+    hnmtly: {
+      label: '明泰',
+      workflowRel: 'hnmtly/ai-workflow',
+      defaultSkills: [],
+    },
+    sqdz: {
+      label: '上汽大众SQDZ',
+      workflowRel: 'sqdz/sqdzout-tms-java',
+      defaultSkills: [],
+    },
+  },
   dipKeywords:
     /DIP|tmsdemo|S4|ECC|ECS|YURUN_LE|运单同步|模拟|发布|接口配置|出站|管道|SAP|PO\b|401|会话失效|字段约束/i,
   featureKeywords: /新功能|新需求|开发|需求|页面|字段|流程|导出|优化|改造|YJ2RQ|RJ2RQ/i,
   handleKeywords: /处理|排查|修|问题|报错|失败|帮忙|看一下/i,
+  /** 业务门禁：单聊/群聊均须命中其一才自动回复（进行中的工单会话除外） */
+  businessKeywords:
+    /YJ2RQ\d+|RJ2RQ\d+|RQ\d{9,}|DIP|tmsdemo|S4|ECC|ECS|YURUN_|Spec|\.spec-workflow|skill|工单|联调|接口|报错|异常|失败|发布|编码|新功能|新需求|需求编号|页面|字段|流程|导出|改造|优化|运单|401|会话失效|接口配置|出站|管道|SAP|PO\b|字段约束|明泰|hnmtly|sqdz|上汽大众|Outbound|工位器具|行车|配载|WMS|TMS/i,
   ackText: '已收到，我看一下。',
   templates: {
     askReqId:

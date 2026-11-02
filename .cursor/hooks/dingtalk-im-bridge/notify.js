@@ -7,7 +7,7 @@ const path = require('path');
 const hooksDir = path.join(__dirname, '..');
 const config = require('./config');
 const { writePromptFiles } = require('./build-agent-prompt');
-const { resolveAgentBin } = require('./resolve-agent-bin');
+const { resolveAgentSpawn } = require('./resolve-agent-bin');
 
 function notifyMac(title, body) {
   if (process.platform !== 'darwin') return;
@@ -21,8 +21,10 @@ function notifyMac(title, body) {
 
 function spawnFullAutoAgent(job) {
   if (!config.fullAuto) return false;
-  if (!resolveAgentBin()) {
-    process.stderr.write('[dingtalk] FULL_AUTO: cursor-agent 未找到\n');
+  if (!resolveAgentSpawn()) {
+    process.stderr.write(
+      '[dingtalk] FULL_AUTO: cursor-agent 未找到（请执行 irm https://cursor.com/install?win32=true | iex）\n'
+    );
     return false;
   }
   writePromptFiles(job, { fullAuto: true });

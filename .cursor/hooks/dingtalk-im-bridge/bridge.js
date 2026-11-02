@@ -14,6 +14,7 @@ const { sendText } = require('./reply');
 const { handleMessage } = require('./router');
 const store = require('./store');
 const { enrichEventMedia, buildTextForIntent, MEDIA_HINT } = require('./media');
+const { dwsSpawnOptions } = require('./resolve-dws-bin');
 
 function dwsArgs(kind) {
   const tail = ['event', '+listen-im', ...config.dws.listenFormat, '--kind', kind];
@@ -94,7 +95,8 @@ function isReadyLine(raw) {
 
 function spawnListener(kind) {
   const args = dwsArgs(kind);
-  const child = spawn('dws', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+  const { command, args: spawnArgs } = dwsSpawnOptions(args);
+  const child = spawn(command, spawnArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
   child.stderr.on('data', (buf) => {
     process.stderr.write(`[${kind}] ${buf}`);
   });
@@ -148,8 +150,12 @@ async function routeEvent(evt, listenKind) {
 function main() {
   store.ensureDirs();
   fs.mkdirSync(config.dirs.media, { recursive: true });
+  const deptGate = config.policy.gateCloudDeliveryDept
+    ? config.policy.replyDeptPatterns.join('|')
+    : 'off';
+  const workGate = config.policy.gateWorkOnly ? '业务关键词' : 'off';
   process.stderr.write(
-    'dingtalk-im-bridge started (at-me + all-direct). policy: autoCodeInGroup=true, gate=云交付+工作类, media=on\n'
+    `dingtalk-im-bridge 已启动（群@我 + 单聊）。门禁：部门=[${deptGate}] 项目=雨润|明泰|大众 autoCodeInGroup=${config.policy.autoCodeInGroup} media=on\n`
   );
   spawnListener('at-me');
   spawnListener('all-direct');

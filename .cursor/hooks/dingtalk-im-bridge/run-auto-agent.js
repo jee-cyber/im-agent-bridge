@@ -12,7 +12,7 @@ const { spawn, spawnSync } = require('child_process');
 const config = require('./config');
 const store = require('./store');
 const { writePromptFiles, buildPrompt } = require('./build-agent-prompt');
-const { resolveAgentBin } = require('./resolve-agent-bin');
+const { resolveAgentSpawn } = require('./resolve-agent-bin');
 const { sendPendingReply, pendingPath } = require('./send-pending-reply');
 const { collectPendingReply } = require('./collect-pending-reply');
 const { formatConsultantBody } = require('./format-consultant-body');
@@ -27,12 +27,29 @@ function log(jobId, msg) {
   process.stderr.write(line);
 }
 
+/** 判断锁文件中的 PID 是否仍在运行（避免僵尸锁导致 follow-up 永不执行） */
+function isPidAlive(pid) {
+  if (!pid || !Number.isFinite(pid)) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function acquireLock(jobId) {
   store.ensureDirs();
   const lock = path.join(config.dirs.state, `agent-running-${jobId}.lock`);
   if (fs.existsSync(lock)) {
     const age = Date.now() - fs.statSync(lock).mtimeMs;
-    if (age < 20 * 60 * 1000) return null;
+    const raw = fs.readFileSync(lock, 'utf8').trim();
+    const heldPid = parseInt(raw.split(/\s+/)[0], 10);
+    const alive = isPidAlive(heldPid);
+    if (alive && age < 20 * 60 * 1000) {
+      log(jobId, `skip: already running pid=${heldPid}`);
+      return null;
+    }
     fs.unlinkSync(lock);
   }
   fs.writeFileSync(lock, String(process.pid) + '\n', 'utf8');
@@ -111,10 +128,14 @@ async function main() {
   }
 
   const agentLog = path.join(LOG_DIR, `agent-${jobId}.log`);
-  const bin = resolveAgentBin();
-  if (!bin) {
+  const spawnEntry = resolveAgentSpawn();
+  if (!spawnEntry) {
     log(jobId, 'fail: cursor-agent not found');
-    writeFallbackReply(job, agentLog, '未安装 cursor-agent');
+    writeFallbackReply(
+      job,
+      agentLog,
+      '未安装 cursor-agent，请在本机执行: irm https://cursor.com/install?win32=true | iex'
+    );
     sendPendingReply();
     releaseLock(lock);
     process.exit(1);
@@ -126,9 +147,13 @@ async function main() {
 
   const prompt = buildPrompt(job, { fullAuto: true });
   writePromptFiles(job, { fullAuto: true });
-  log(jobId, `start cursor-agent model=${config.agentModel} bin=${bin}`);
+  log(
+    jobId,
+    `start cursor-agent model=${config.agentModel} cmd=${spawnEntry.command} prefix=${spawnEntry.argsPrefix.join(',')}`
+  );
 
   const agentArgs = [
+    ...spawnEntry.argsPrefix,
     '--trust',
     '--yolo',
     '--model',
@@ -140,7 +165,7 @@ async function main() {
   ];
   fs.appendFileSync(agentLog, '\n--- agent live output ---\n');
 
-  const result = await runAgentWithStream(bin, agentArgs, agentLog);
+  const result = await runAgentWithStream(spawnEntry.command, agentArgs, agentLog);
 
   if (result.status !== 0) {
     log(jobId, `agent exit code=${result.status} err=${result.error || ''}`);

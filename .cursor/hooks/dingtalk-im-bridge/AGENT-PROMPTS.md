@@ -2,6 +2,11 @@
 
 bridge 写入 `inbox/<jobId>.json` 与 `dingtalk-agent-wake.flag` 后，由 `sessionStart` 注入或你手动开 Agent。按 `phase` 执行。
 
+## 入站路由（bridge 本地规则）
+
+云交付 @/单聊：**仅 `AUTO_AGENT` 会钉钉回复并唤醒开发助手**；`LIGHT_REPLY` / `CLARIFY` 与部门门禁拦截一样 **静默不回复**。  
+**支持三项目**：雨润（YJ2RQ/DIP）、明泰 hnmtly、上汽大众 SQDZ（RQ 编号/Outbound 等）；job 含 `project` / `workflowRel` 指向对应 ai-workflow 或代码仓。
+
 ## 通用
 
 - 挂载 Skills 见 job 的 `skills` 字段。
@@ -47,6 +52,12 @@ bridge 写入 `inbox/<jobId>.json` 与 `dingtalk-agent-wake.flag` 后，由 `ses
   "completeJob": true
 }
 ```
+
+## CODE_LOOKUP
+
+1. 在 **雨润** 工作区查代码：`yurun-tms` + 产品 `scm.tms7`（`Sprint/release-227-yurun`），必要时 `scm-dip`。
+2. 回答顾问：菜单/接口/Service 职责、关键分支，**不要**改明泰/sqdz 仓库除非 job 明确要求。
+3. 结论写入 `pending-reply.json` 的 `body`（口语、可发钉钉）。
 
 ## DIP_RUN
 

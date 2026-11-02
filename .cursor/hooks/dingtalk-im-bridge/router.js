@@ -4,8 +4,14 @@ const crypto = require('crypto');
 const config = require('./config');
 const store = require('./store');
 const { notifyAgentWake } = require('./notify');
-const { evaluateInbound } = require('./sender-gate');
-const { classifyIntent, parseReqId } = require('./intent');
+const { evaluateDeptInbound } = require('./sender-gate');
+const { evaluateLinkInbound } = require('./link-gate');
+const { classifyIntent, parseReqId, parseSqdzReqId } = require('./intent');
+const {
+  buildRouteContext,
+  routeInbound,
+  applyFollowUpJobPatch,
+} = require('./message-route');
 
 function newJobId() {
   const t = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
@@ -73,6 +79,19 @@ function messageRecord(evt, text, channel) {
   };
 }
 
+/** 写入 job 所属项目（雨润/明泰/大众）与工作流目录，供 Agent 与 FULL_AUTO 使用 */
+function stampProject(job, decision) {
+  const project = decision?.extracted?.project || job.project || 'yurun';
+  const meta = config.projects[project] || config.projects.yurun;
+  job.project = project;
+  job.projectLabel = decision?.extracted?.projectLabel || meta.label;
+  job.workflowRel = decision?.extracted?.workflowRel || meta.workflowRel;
+  if (decision?.auto_agent_skills_hint?.length && !job.skills?.length) {
+    job.skills = decision.auto_agent_skills_hint;
+  }
+  return job;
+}
+
 function wakeAgent(job, phase, note) {
   job.phase = phase;
   job.updatedAt = new Date().toISOString();
@@ -110,6 +129,7 @@ async function handleMessage(evt, listenKind) {
   const text = String(evt.content).trim();
   const intent = classifyIntent(text);
   const reqId = parseReqId(text);
+  const sqdzReqId = parseSqdzReqId(text);
   const replies = [];
 
   const replyTarget = {
@@ -120,12 +140,23 @@ async function handleMessage(evt, listenKind) {
 
   const jobForGate =
     conv.phase !== 'idle' && conv.jobId ? store.readJob(conv.jobId) : null;
-  const gate = await evaluateInbound(evt, conv, jobForGate);
+  const gate = await evaluateDeptInbound(evt, listenKind);
   if (!gate.allow) {
     seen[eventId] = Date.now();
     store.saveSeen(seen);
     process.stderr.write(
-      `[gate] skip sender=${evt.sender || ''} ${gate.reason || ''}\n`
+      `[门禁] 忽略 ${gate.channel === 'direct' ? '单聊' : '群聊'} sender=${evt.sender || ''} ${gate.reason || ''}\n`
+    );
+    return [];
+  }
+
+  const linkGate = evaluateLinkInbound(text);
+  if (!linkGate.allow) {
+    seen[eventId] = Date.now();
+    store.saveSeen(seen);
+    const sample = (linkGate.urls || []).slice(0, 2).join(' | ');
+    process.stderr.write(
+      `[链接门禁] 静默 ${gate.channel === 'direct' ? '单聊' : '群聊'} ${linkGate.reason || ''} ${sample}\n`
     );
     return [];
   }
@@ -133,29 +164,65 @@ async function handleMessage(evt, listenKind) {
   seen[eventId] = Date.now();
   store.saveSeen(seen);
 
-  replies.push({ ...replyTarget, text: config.ackText });
+  const routeCtx = buildRouteContext(evt, conv, jobForGate, listenKind);
+  const decision = routeInbound(routeCtx);
+  process.stderr.write(
+    `[路由] ${decision.route} ${decision.reason} project=${decision.extracted?.project || '-'} conf=${decision.confidence}\n`
+  );
+
+  /** 未入开发助手流水线：静默（部门门禁拦截同理，不打扰用户） */
+  if (decision.route === 'LIGHT_REPLY' || decision.route === 'CLARIFY') {
+    process.stderr.write(
+      `[路由] 静默不回复 route=${decision.route} reason=${decision.reason || ''}\n`
+    );
+    conversations[convKey] = conv;
+    store.saveConversations(conversations);
+    return [];
+  }
+
+  if (decision.reply_text) {
+    replies.push({ ...replyTarget, text: decision.reply_text });
+  }
 
   if (conv.phase !== 'idle' && conv.jobId) {
     const job = store.readJob(conv.jobId);
     if (job) {
       job.messages.push(messageRecord(evt, text, channel));
+      let agentWoken = false;
       if (job.phase === 'ASK_REQ_ID' && reqId) {
         job.requirementId = reqId;
         job.title = pickTitle(text, reqId) || job.title;
         job.specDir = `.spec-workflow/specs/${reqId}${job.title ? '-' + job.title.slice(0, 40) : ''}`;
         wakeAgent(job, 'SPEC_BOOTSTRAP', '收到需求编号，开始落盘与设计');
         replies.push({ ...replyTarget, text: config.templates.queuedAgent(job.jobId) });
+        agentWoken = true;
       } else if (job.phase === 'AWAIT_SYSTEM' && /S4|ECC/i.test(text)) {
         job.dipSystem = /ECC/i.test(text) ? 'ECC' : 'S4';
         job.type = job.dipSystem === 'ECC' ? 'DIP_ECC' : 'DIP_S4';
         wakeAgent(job, 'DIP_RUN', `确认 ${job.dipSystem}`);
         replies.push({ ...replyTarget, text: config.templates.queuedAgent(job.jobId) });
-      } else if (job.phase === 'CLARIFY' || job.phase === 'SPEC_BOOTSTRAP') {
-        job.phase = 'CLARIFY';
-        wakeAgent(job, 'CLARIFY', '提问者补充澄清');
-        replies.push({ ...replyTarget, text: '收到，我更新需求说明后继续。' });
+        agentWoken = true;
+      } else if (
+        job.phase === 'CLARIFY' ||
+        job.phase === 'SPEC_BOOTSTRAP' ||
+        job.phase === 'CODE_LOOKUP'
+      ) {
+        if (job.phase === 'CODE_LOOKUP') {
+          wakeAgent(job, 'CODE_LOOKUP', '补充上下文后继续查代码');
+          replies.push({ ...replyTarget, text: '收到，我继续查代码逻辑。' });
+        } else {
+          job.phase = 'CLARIFY';
+          wakeAgent(job, 'CLARIFY', '提问者补充澄清');
+          replies.push({ ...replyTarget, text: '收到，我更新需求说明后继续。' });
+        }
+        agentWoken = true;
       } else if (job.phase === 'READY_CODE') {
         replies.push({ ...replyTarget, text: '这单已在编码中，有进展我会回复。' });
+      } else if (decision.route === 'AUTO_AGENT') {
+        /** DIP_RUN/OPS 等阶段追加说明时，此前只回「收到」未再次 FULL_AUTO */
+        applyFollowUpJobPatch(job, text, decision);
+        wakeAgent(job, job.phase, decision.reason || '顾问追加说明');
+        agentWoken = true;
       }
       job.updatedAt = new Date().toISOString();
       store.writeJob(job);
@@ -189,6 +256,7 @@ async function handleMessage(evt, listenKind) {
       job.type = 'DIP_S4';
       job.dipSystem = 'S4';
       job.phase = 'DIP_RUN';
+      stampProject(job, decision);
       store.writeJob(job);
       wakeAgent(job, 'DIP_RUN', '消息已含 S4');
       replies.push({ ...replyTarget, text: config.templates.queuedAgent(job.jobId) });
@@ -196,10 +264,12 @@ async function handleMessage(evt, listenKind) {
       job.type = 'DIP_ECC';
       job.dipSystem = 'ECC';
       job.phase = 'DIP_RUN';
+      stampProject(job, decision);
       store.writeJob(job);
       wakeAgent(job, 'DIP_RUN', '消息已含 ECC');
       replies.push({ ...replyTarget, text: config.templates.queuedAgent(job.jobId) });
     } else {
+      stampProject(job, decision);
       store.writeJob(job);
       replies.push({ ...replyTarget, text: config.templates.askSystem });
     }
@@ -224,6 +294,7 @@ async function handleMessage(evt, listenKind) {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
+      stampProject(job, decision);
       store.writeJob(job);
       replies.push({ ...replyTarget, text: config.templates.askReqId });
       conv = { phase: 'ASK_REQ_ID', jobId: job.jobId };
@@ -247,6 +318,7 @@ async function handleMessage(evt, listenKind) {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
+      stampProject(job, decision);
       store.writeJob(job);
       wakeAgent(job, 'SPEC_BOOTSTRAP', '新功能带编号入队');
       replies.push({ ...replyTarget, text: config.templates.queuedAgent(job.jobId) });
@@ -271,9 +343,64 @@ async function handleMessage(evt, listenKind) {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+    stampProject(job, decision);
     store.writeJob(job);
     replies.push({ ...replyTarget, text: config.templates.askSystem });
     conv = { phase: 'AWAIT_SYSTEM', jobId: job.jobId };
+  } else if (decision.extracted?.intentHint === 'CODE_LOOKUP') {
+    const job = {
+      jobId: newJobId(),
+      type: 'CODE_LOOKUP',
+      phase: 'CODE_LOOKUP',
+      requirementId: reqId || sqdzReqId,
+      title: text.slice(0, 80),
+      specDir: null,
+      skills: decision.auto_agent_skills_hint?.length
+        ? decision.auto_agent_skills_hint
+        : config.projects[decision.extracted?.project || 'yurun'].defaultSkills,
+      conversation_id: evt.conversation_id,
+      sender_open_dingtalk_id: evt.sender_open_dingtalk_id,
+      sender_display: evt.sender || '',
+      channel,
+      messages: [messageRecord(evt, text, channel)],
+      autoCodeAfterClarify: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    stampProject(job, decision);
+    store.writeJob(job);
+    wakeAgent(job, 'CODE_LOOKUP', `${job.projectLabel || '项目'}代码/逻辑查询`);
+    replies.push({ ...replyTarget, text: config.templates.queuedAgent(job.jobId) });
+    conv = { phase: 'CODE_LOOKUP', jobId: job.jobId };
+  } else if (decision.route === 'AUTO_AGENT') {
+    const skills =
+      decision.auto_agent_skills_hint?.length > 0
+        ? decision.auto_agent_skills_hint
+        : ['yurun-fullflow'];
+    const job = {
+      jobId: newJobId(),
+      type: 'OPS',
+      phase: 'DIP_RUN',
+      requirementId: reqId || sqdzReqId,
+      title: text.slice(0, 80),
+      specDir: reqId
+        ? `.spec-workflow/specs/${reqId}${pickTitle(text, reqId) ? '-' + pickTitle(text, reqId).slice(0, 40) : ''}`
+        : null,
+      skills,
+      conversation_id: evt.conversation_id,
+      sender_open_dingtalk_id: evt.sender_open_dingtalk_id,
+      sender_display: evt.sender || '',
+      channel,
+      messages: [messageRecord(evt, text, channel)],
+      autoCodeAfterClarify: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    stampProject(job, decision);
+    store.writeJob(job);
+    wakeAgent(job, 'DIP_RUN', decision.reason || '业务消息入队');
+    replies.push({ ...replyTarget, text: config.templates.queuedAgent(job.jobId) });
+    conv = { phase: job.phase, jobId: job.jobId };
   }
 
   conversations[convKey] = conv;

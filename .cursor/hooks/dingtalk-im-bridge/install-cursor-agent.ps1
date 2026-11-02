@@ -2,7 +2,7 @@
 $ErrorActionPreference = "Stop"
 
 $Version = "2026.10.22-27dcf5f"
-$Url = "https://downloads.cursor.com/lab/$Version/win32/x64/agent-cli-package.tar.gz"
+$Url = "https://downloads.cursor.com/lab/$Version/windows/x64/agent-cli-package.tar.gz"
 $Root = Join-Path $env:USERPROFILE ".cursor\cursor-agent"
 $VersionDir = Join-Path $Root "versions\$Version"
 $BinDir = Join-Path $env:USERPROFILE "bin"
