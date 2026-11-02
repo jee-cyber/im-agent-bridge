@@ -1,6 +1,6 @@
 # 云交付项目本地仓库索引
 
-> 工作区根：`E:\code`（钉钉 bridge 的 `aiWorkflowRoot` 指向此处）。  
+> 工作区根默认是本仓库根。客户仓在别的总目录时，设置 `IM_BRIDGE_WORKSPACE`（例如 `E:\code`）。下面的相对路径都相对这个根。  
 > 更新方式见文末「同步命令」；分支策略：**定制仓先 `dev`，再切远端 `jett/*`；若远端无 jett，则在最新 `dev` 上创建同名本地 jett 分支**；C# 产品仓用 `Sprint/release-*`。
 
 ## 雨润（yurun）

@@ -1,0 +1,204 @@
+{
+  "name": "yurun-tms",
+  "description": "云交付三项目（雨润 / 明泰 / 上汽大众 SQDZ）的等价配置。代码只读这份 profile。",
+  "defaultProject": "yurun",
+  "agent": { "modelHint": "Composer 2.5 系" },
+  "gate": {
+    "senderDept": { "enabled": true, "pattern": "云交付" },
+    "workOnly": { "enabled": true, "keywords": "" },
+    "links": {
+      "enabled": true,
+      "patterns": [
+        "192\\.168\\.100\\.155.*/(yurun|hnmtly|sqdz)/",
+        "192\\.168\\.100\\.155.*scm\\.customization",
+        "192\\.168\\.100\\.155.*quantum-scm",
+        "codeup\\.aliyun\\.com.*(di-ai-dip|di-ai-global/di-ai-dip)",
+        "codeup\\.aliyun\\.com.*/(yurun|hnmtly|sqdz)/",
+        "alidocs\\.dingtalk\\.com",
+        "(docs|page|h5|qr)\\.dingtalk\\.com"
+      ]
+    }
+  },
+  "requirementIds": [
+    { "name": "primary", "pattern": "(YJ2RQ|RJ2RQ)\\d+", "project": "yurun" },
+    { "name": "sqdz", "pattern": "(?<![A-Za-z0-9])RQ\\d{9,}", "project": "sqdz" }
+  ],
+  "signals": "YJ2RQ\\d+|RJ2RQ\\d+|RQ\\d{9,}|DIP|tmsdemo|S4|ECC|ECS|YURUN_|Spec|\\.spec-workflow|skill|工单|联调|接口|报错|异常|失败|发布|编码|新功能|新需求|需求编号|页面|字段|流程|导出|改造|优化|运单|401|会话失效|接口配置|出站|管道|SAP|PO\\b|字段约束|明泰|hnmtly|sqdz|上汽大众|Outbound|工位器具|行车|配载|WMS|TMS",
+  "projects": {
+    "yurun": {
+      "label": "雨润",
+      "workflowRel": "yurun/ai-workflow",
+      "defaultSkills": ["yurun-fullflow", "yurun-dip-publish"],
+      "detect": "雨润|yurun|YURUN_|哈尔滨大众肉联",
+      "orDip": true
+    },
+    "hnmtly": {
+      "label": "明泰",
+      "workflowRel": "hnmtly/ai-workflow",
+      "defaultSkills": [],
+      "detect": "明泰|hnmtly|mingtai|数字明泰|铝业WT|行车|配载|库内交易|RF队列|WMS.*明泰|TMS.*明泰"
+    },
+    "sqdz": {
+      "label": "上汽大众SQDZ",
+      "workflowRel": "sqdz/sqdzout-tms-java",
+      "defaultSkills": [],
+      "detect": "(?<![A-Za-z0-9])RQ\\d{9,}|上汽大众|sqdz|Outbound|outbound|工位器具|LCMS|OMD|TOS\\+TMS|sqdzout"
+    }
+  },
+  "projectDetectOrder": ["sqdz", "hnmtly", "yurun"],
+  "unsupported": { "pattern": "洛阳钼业|钼业(?!.*明泰)" },
+  "detect": {
+    "dip": {
+      "keywords": "DIP|tmsdemo|S4|ECC|ECS|YURUN_LE|运单同步|模拟|发布|接口配置|出站|管道|SAP|PO\\b|401|会话失效|字段约束",
+      "unlessPrimaryRequirement": true,
+      "intent": "DIP",
+      "jobType": "dip"
+    },
+    "feature": {
+      "keywords": "新功能|新需求|开发|需求|页面|字段|流程|导出|优化|改造|YJ2RQ|RJ2RQ",
+      "orPrimaryRequirement": true,
+      "intent": "NEW_FEATURE",
+      "jobType": "feature"
+    },
+    "issue": {
+      "keywords": "处理|排查|修|问题|报错|失败|帮忙|看一下",
+      "intent": "HANDLE",
+      "jobType": "dip"
+    }
+  },
+  "casual": "^(在吗|在不在|你好|您好|早上好|下午好|晚上好|谢谢|多谢|好的|收到|嗯嗯?|ok|okay|hi|hello|嗨)[\\s!?？。~…]*$",
+  "jobTypes": {
+    "dip": {
+      "type": "DIP_UNKNOWN",
+      "skills": ["yurun-dip-publish"],
+      "autoCodeAfterClarify": false,
+      "bindRequirement": "none",
+      "titleFrom": "none",
+      "variant": {
+        "ask": "请确认是 S4 还是 ECC 相关？回复 S4 或 ECC，并补充接口编码或报错信息。",
+        "tokens": [
+          { "match": "\\bECC\\b", "jobType": "dip_ecc", "label": "ECC" },
+          { "match": "\\bS4\\b", "jobType": "dip_s4", "label": "S4" }
+        ]
+      },
+      "phases": {
+        "awaitVariant": "AWAIT_SYSTEM",
+        "run": "DIP_RUN",
+        "done": "DONE"
+      }
+    },
+    "dip_s4": {
+      "type": "DIP_S4",
+      "skills": ["yurun-dip-publish"],
+      "autoCodeAfterClarify": false,
+      "variantLabel": "S4",
+      "phases": { "run": "DIP_RUN", "done": "DONE" }
+    },
+    "dip_ecc": {
+      "type": "DIP_ECC",
+      "skills": ["yurun-dip-publish"],
+      "autoCodeAfterClarify": false,
+      "variantLabel": "ECC",
+      "phases": { "run": "DIP_RUN", "done": "DONE" }
+    },
+    "feature": {
+      "type": "NEW_FEATURE",
+      "skills": ["yurun-fullflow", "yurun-req-practice"],
+      "requiresRequirementId": true,
+      "bindRequirement": "primary",
+      "titleFrom": "rest",
+      "setAutoCodeInGroup": true,
+      "autoCodeAfterClarify": true,
+      "specDir": {
+        "base": ".spec-workflow/specs/{reqId}",
+        "withTitle": ".spec-workflow/specs/{reqId}-{title}"
+      },
+      "phases": {
+        "awaitRequirement": "ASK_REQ_ID",
+        "bootstrap": "SPEC_BOOTSTRAP",
+        "clarify": "CLARIFY",
+        "readyCode": "READY_CODE",
+        "done": "DONE"
+      }
+    },
+    "code_lookup": {
+      "type": "CODE_LOOKUP",
+      "skillsFromProject": true,
+      "autoCodeAfterClarify": false,
+      "bindRequirement": "any",
+      "titleFrom": "text",
+      "phases": {
+        "run": "CODE_LOOKUP",
+        "codeLookup": "CODE_LOOKUP",
+        "done": "DONE"
+      }
+    },
+    "ops": {
+      "type": "OPS",
+      "skillsFromProject": true,
+      "fallbackSkills": ["yurun-fullflow"],
+      "autoCodeAfterClarify": false,
+      "bindRequirement": "any",
+      "titleFrom": "text",
+      "specOn": "primary",
+      "specDir": {
+        "base": ".spec-workflow/specs/{reqId}",
+        "withTitle": ".spec-workflow/specs/{reqId}-{title}"
+      },
+      "phases": { "run": "DIP_RUN", "done": "DONE" }
+    }
+  },
+  "intentMap": {
+    "CODE_LOOKUP": "code_lookup",
+    "OPS": "ops"
+  },
+  "route": {
+    "patterns": {
+      "office": "总结|润色|翻译|改写|写一段|帮我写|闲聊|打卡|表情包|在吗|在不在|早上好|晚上好",
+      "codeLookup": "车辆登记|运单|OpenAPI|Service|页面|按钮|TMS|接口逻辑|代码逻辑|功能实现|菜单|Controller|\\.cs\\b|查一下.*逻辑|行车|Outbound|调度",
+      "linkOnly": "^https?:\\/\\/\\S+$",
+      "followUpLookup": "查一下.*逻辑|登记查询|菜单.*查询",
+      "vagueLookup": "帮我看看|看一下|查一下",
+      "vagueAnchor": "页面|菜单|接口|OpenAPI|Service|TMS|Outbound",
+      "vagueHandle": "处理一下|帮忙看|看一下|排查",
+      "quoteSummary": "总结|一句|概括|摘要"
+    },
+    "replies": {
+      "emptyQuote": "引用里没看到正文，你可以把要点再贴一次。",
+      "linkOnly": "链接收到了。请补一句要做什么（YJ2RQ/RQ 需求号、接口编码或报错原文），我好接雨润/明泰/大众对应流水线。",
+      "unsupported": "这类客户项目我这边还没接自动流水线；雨润/明泰/上汽大众 SQDZ 的需求请带编号或具体菜单/接口再 @我。",
+      "office": "在的。我可以接雨润、明泰、大众 SQDZ 的需求/Spec、编码、排障和 DIP；请带需求号或具体功能/接口说明。",
+      "receivedWork": "已收到，我转开发助手（{modelHint}）处理【{projectLabel}】这单。",
+      "receivedFeature": "已收到，我转开发助手处理【{projectLabel}】需求/Spec。",
+      "clarifyLookup": "可以帮查代码逻辑。请补：哪个项目（雨润/明泰/大众）、菜单/页面名或 OpenAPI/Service 路径，有 YJ2RQ/RQ 编号也带上。",
+      "receivedLookup": "收到，我转开发助手查【{projectLabel}】实现逻辑。",
+      "clarifyTarget": "要处理哪一块？请说明项目（雨润/明泰/大众）、需求号 YJ2RQ 或 RQ，或接口编码/报错原文、具体功能点。",
+      "receivedBusiness": "已收到，我转开发助手处理【{projectLabel}】。",
+      "outOfScope": "我这边自动流水线接雨润/明泰/大众 SQDZ 的需求与排障；请补 YJ2RQ、RQ 编号或接口/报错信息，我再转开发助手。",
+      "followUp": "收到，我继续跟这单处理。",
+      "followUpLookup": "收到，我继续查代码逻辑。"
+    }
+  },
+  "policy": {
+    "autoCodeInGroup": true,
+    "complexClarifyQuestionThreshold": 3,
+    "directClarifyInPlace": true
+  },
+  "templates": {
+    "ack": "已收到，我看一下。",
+    "askReqId": "这是新功能类需求的话，请先给需求编号（如 YJ2RQ202610223704）和一句话名称。若是 S4/ECC 接口配置问题，请回复 S4 或 ECC，并带上接口编码或报错原文。",
+    "askSystem": "请确认是 S4 还是 ECC 相关？回复 S4 或 ECC，并补充接口编码或报错信息。",
+    "queued": "已入队（{jobId}），我会在 Cursor 里按项目 Spec/Skill 处理；有结论会在本对话或单聊回复你。",
+    "complexClarifyIntro": "【{reqId}】有几项需要和你单独确认，后续几条我会私信你，群里先不展开细节。",
+    "progressNote": "这单已在编码中，有进展我会回复。",
+    "followClarify": "收到，我更新需求说明后继续。",
+    "followLookup": "收到，我继续查代码逻辑。",
+    "wakeVariant": "消息已含 {label}",
+    "wakeVariantFollow": "确认 {label}",
+    "wakeBootstrap": "新功能带编号入队",
+    "wakeReqReceived": "收到需求编号，开始落盘与设计",
+    "wakeLookup": "{projectLabel}代码/逻辑查询",
+    "wakeOps": "{reason}"
+  },
+  "im": { "listenKinds": ["at-me", "all-direct"] }
+}

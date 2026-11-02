@@ -15,50 +15,50 @@
 
 | 路径 | 用途 |
 |------|------|
-| `.cursor/hooks/dingtalk-im-bridge/inbox/` | 工单 JSON（勿提交） |
-| `.cursor/hooks/dingtalk-im-bridge/state/` | 会话、门禁缓存 |
-| `%LOCALAPPDATA%\cursor-dingtalk-bridge\logs\` | `agent-<jobId>.log` |
+| `data/inbox/` | 工单 JSON（勿提交） |
+| `data/state/` | 会话、门禁缓存 |
+| `%LOCALAPPDATA%\im-agent-bridge\logs\` | `agent-<jobId>.log` |
 
 ## 安装步骤（推荐）
 
 在 **PowerShell** 中（项目根 = 含 `.cursor` 的目录）：
 
 ```powershell
-cd .cursor\hooks\dingtalk-im-bridge
-Copy-Item env.local.example.ps1 env.local.ps1
+cd scripts\windows
+Copy-Item env.example.ps1 env.local.ps1
 # 编辑 env.local.ps1：$env:DINGTALK_SELF_OPEN_ID = "你的openId"
 
 # 可选：安装 cursor-agent
-.\install-cursor-agent.ps1
+.\install-agent.ps1
 cursor-agent login
 # 或 NO_OPEN_BROWSER=1 cursor-agent login 后浏览器完成授权
 
 # 注册登录自启计划任务
 Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
-.\install-windows.ps1
+.\install.ps1
 .\status.ps1
 ```
 
 前台调试（看实时 stderr）：
 
 ```powershell
-.\start-bridge.ps1
+.\start.ps1
 ```
 
 卸载：
 
 ```powershell
-.\uninstall-windows.ps1
+.\uninstall.ps1
 ```
 
 ## 与 macOS 差异
 
 | 项 | macOS | Windows |
 |----|--------|---------|
-| 常驻 | LaunchAgent `install.sh` | 计划任务 `install-windows.ps1` |
-| 环境变量 | shell / plist | `env.local.ps1` |
-| 日志 | `~/Library/Logs/cursor-dingtalk-bridge` | `%LOCALAPPDATA%\cursor-dingtalk-bridge\logs` |
-| cursor-agent | `install-cursor-agent.sh` | `install-cursor-agent.ps1` |
+| 常驻 | LaunchAgent `scripts/macos/install.sh` | 计划任务 `scripts/windows/install.ps1` |
+| 环境变量 | shell / plist | `scripts/windows/env.local.ps1` |
+| 日志 | `~/Library/Logs/im-agent-bridge` | `%LOCALAPPDATA%\im-agent-bridge\logs` |
+| cursor-agent | `scripts/macos/install-agent.sh` | `scripts/windows/install-agent.ps1` |
 
 ## 门禁策略（与 mac 一致）
 

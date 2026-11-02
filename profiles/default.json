@@ -1,0 +1,132 @@
+{
+  "name": "default",
+  "description": "通用示例。复制为 profiles/local.json 后按自己的项目改关键字、仓库路径和 Skill 名。",
+  "defaultProject": "main",
+  "agent": { "modelHint": "" },
+  "gate": {
+    "senderDept": { "enabled": false, "pattern": "" },
+    "workOnly": { "enabled": false, "keywords": "" },
+    "links": { "enabled": false, "patterns": [] }
+  },
+  "requirementIds": [
+    { "name": "primary", "pattern": "\\b[A-Z]{2,4}\\d{6,}\\b", "project": "main" }
+  ],
+  "signals": "需求|需求编号|报错|异常|失败|接口|发布|页面|字段",
+  "projects": {
+    "main": {
+      "label": "默认项目",
+      "workflowRel": "",
+      "defaultSkills": [],
+      "detect": ""
+    }
+  },
+  "projectDetectOrder": ["main"],
+  "unsupported": { "pattern": "" },
+  "detect": {
+    "feature": {
+      "keywords": "新功能|新需求|开发|需求|改造|新增",
+      "orPrimaryRequirement": true,
+      "intent": "NEW_FEATURE",
+      "jobType": "feature"
+    },
+    "issue": {
+      "keywords": "报错|失败|异常|排查|问题|看一下",
+      "intent": "HANDLE",
+      "jobType": "ops"
+    }
+  },
+  "casual": "^(在吗|在不在|你好|您好|早上好|下午好|晚上好|谢谢|多谢|好的|收到|嗯嗯?|ok|okay|hi|hello|嗨)[\\s!?？。~…]*$",
+  "jobTypes": {
+    "feature": {
+      "type": "NEW_FEATURE",
+      "skills": [],
+      "requiresRequirementId": true,
+      "bindRequirement": "primary",
+      "titleFrom": "rest",
+      "setAutoCodeInGroup": true,
+      "autoCodeAfterClarify": true,
+      "specDir": {
+        "base": "specs/{reqId}",
+        "withTitle": "specs/{reqId}-{title}"
+      },
+      "phases": {
+        "awaitRequirement": "ASK_REQ_ID",
+        "bootstrap": "BOOTSTRAP",
+        "clarify": "CLARIFY",
+        "readyCode": "READY_CODE",
+        "done": "DONE"
+      }
+    },
+    "ops": {
+      "type": "OPS",
+      "skillsFromProject": true,
+      "fallbackSkills": [],
+      "autoCodeAfterClarify": false,
+      "bindRequirement": "any",
+      "titleFrom": "text",
+      "specOn": "primary",
+      "phases": { "run": "RUN", "done": "DONE" }
+    },
+    "code_lookup": {
+      "type": "CODE_LOOKUP",
+      "skillsFromProject": true,
+      "autoCodeAfterClarify": false,
+      "bindRequirement": "any",
+      "titleFrom": "text",
+      "phases": { "run": "CODE_LOOKUP", "codeLookup": "CODE_LOOKUP", "done": "DONE" }
+    }
+  },
+  "intentMap": {
+    "CODE_LOOKUP": "code_lookup",
+    "OPS": "ops"
+  },
+  "route": {
+    "patterns": {
+      "office": "总结|润色|翻译|改写|写一段|帮我写|闲聊|打卡|表情包|在吗|在不在|早上好|晚上好",
+      "codeLookup": "接口逻辑|代码逻辑|功能实现|菜单|Controller|查一下.*逻辑",
+      "linkOnly": "^https?:\\/\\/\\S+$",
+      "followUpLookup": "查一下.*逻辑|菜单.*查询",
+      "vagueLookup": "帮我看看|看一下|查一下",
+      "vagueAnchor": "页面|菜单|接口|Service",
+      "vagueHandle": "处理一下|帮忙看|看一下|排查",
+      "quoteSummary": "总结|一句|概括|摘要"
+    },
+    "replies": {
+      "emptyQuote": "引用里没看到正文，你可以把要点再贴一次。",
+      "linkOnly": "链接收到了。请补一句要做什么（需求编号、接口或报错原文）。",
+      "unsupported": "这个范围我还没接自动处理。请补充项目、编号或具体功能。",
+      "office": "在的。请带需求编号，或具体功能、接口、报错说明。",
+      "receivedWork": "已收到，我转处理【{projectLabel}】这单。",
+      "receivedFeature": "已收到，我转处理【{projectLabel}】需求。",
+      "clarifyLookup": "可以帮查实现。请补项目、菜单或接口路径，有编号也带上。",
+      "receivedLookup": "收到，我去查【{projectLabel}】的实现。",
+      "clarifyTarget": "要处理哪一块？请补充需求编号、接口或报错原文。",
+      "receivedBusiness": "已收到，我转处理【{projectLabel}】。",
+      "outOfScope": "请补需求编号，或接口、报错信息，我再接这单。",
+      "followUp": "收到，我继续跟这单处理。",
+      "followUpLookup": "收到，我继续查实现。"
+    }
+  },
+  "policy": {
+    "autoCodeInGroup": true,
+    "complexClarifyQuestionThreshold": 3,
+    "directClarifyInPlace": true
+  },
+  "templates": {
+    "ack": "已收到，我看一下。",
+    "askReqId": "请先提供需求编号和一句话名称。",
+    "askSystem": "请再补充这单属于哪一类，并带上接口或报错原文。",
+    "queued": "已入队（{jobId}），有结论会在这里回复你。",
+    "complexClarifyIntro": "【{reqId}】有几项需要单独确认，我私信你。",
+    "progressNote": "这单已在处理中，有进展我会回复。",
+    "followClarify": "收到，我更新说明后继续。",
+    "followLookup": "收到，我继续查。",
+    "wakeVariant": "消息已含 {label}",
+    "wakeVariantFollow": "确认 {label}",
+    "wakeBootstrap": "带编号入队",
+    "wakeReqReceived": "收到需求编号，开始整理",
+    "wakeLookup": "{projectLabel}实现查询",
+    "wakeOps": "{reason}"
+  },
+  "im": { "listenKinds": ["at-me", "all-direct"] }
+}

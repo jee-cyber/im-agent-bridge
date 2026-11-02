@@ -1,7 +1,7 @@
 # 同步大众 / 明泰 / 雨润定制仓与 C# 产品分支（dev → jett / Sprint）
 # 用法：pwsh -File sync-customer-repos.ps1
 $ErrorActionPreference = 'Continue'
-$LogRoot = Join-Path $env:LOCALAPPDATA 'cursor-dingtalk-bridge\logs'
+$LogRoot = Join-Path $env:LOCALAPPDATA 'im-agent-bridge\logs'
 New-Item -ItemType Directory -Force -Path $LogRoot | Out-Null
 $LogFile = Join-Path $LogRoot "repo-sync-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
 

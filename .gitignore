@@ -1,8 +1,14 @@
 .DS_Store
+data/
+profiles/local.json
+scripts/windows/env.local.ps1
+
+# 重构前的运行时路径，避免本机残留被提交
 .cursor/hooks/dingtalk-im-bridge/inbox/
 .cursor/hooks/dingtalk-im-bridge/state/
 .cursor/hooks/dingtalk-im-bridge/media/
 .cursor/hooks/dingtalk-im-bridge/pending-reply.json
+.cursor/hooks/dingtalk-im-bridge/env.local.ps1
 .cursor/hooks/dingtalk-agent-wake.flag
 .cursor/hooks/dingtalk-auto-reply.flag
 .cursor/hooks/dingtalk-code.flag
@@ -10,4 +16,3 @@
 .cursor/hooks/dingtalk-auto-prompt.md
 .cursor/hooks/dingtalk-last-inject.txt
 .cursor/hooks/last-gate-reminder.txt
-.cursor/hooks/dingtalk-im-bridge/env.local.ps1

@@ -6,8 +6,8 @@ alwaysApply: false
 
 # 钉钉 Agent 默认行为
 
-当会话由 `dingtalk-agent-wake.flag` / `sessionStart` 注入「钉钉工单」上下文时：
+当会话由 `data/agent-wake.flag` / `sessionStart` 注入工单上下文时：
 
-1. **模型**：使用 **Composer 2.5**（勿用 Grok 等 unless 用户改口）。
-2. **不要等待**：直接读取 `inbox` 中 job JSON，按 `AGENT-PROMPTS.md` 执行，无需用户再粘贴说明。
+1. **模型**：使用环境变量 `DINGTALK_AGENT_MODEL` / `IM_BRIDGE_AGENT_MODEL`（未设置时为 `composer-2.5`）。
+2. **不要等待**：直接读取 `data/inbox` 中 job JSON，按 `docs/AGENT-PROMPTS.md` 执行，无需用户再粘贴说明。
 3. **DIP_RUN**：按项目挂载对应 DIP/发布 Skill，处理完写 `pending-reply.json` 回钉钉。

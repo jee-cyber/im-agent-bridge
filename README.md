@@ -1,75 +1,67 @@
-# Cursor × 钉钉 IM 自动回复桥
+# IM → Agent 桥
 
-个人钉钉 **@我 / 单聊** → 本机 **dws 监听** → 入队工单 → **cursor-agent FULL_AUTO** → 结果回钉钉。
+钉钉 **@我 / 单聊** → 本机 **dws 监听** → 按 profile 分流 → 工单队列 → **本机 Agent** → 结果回钉钉。
 
-源自雨润 TMS `ai-workflow` 实战配置，可挂到任意 Cursor 项目根目录使用。
+管道与具体 IDE 无关。当前执行器是 Cursor Agent，业务规则在 `profiles/`，不写进 `src/`。
 
-## 能力概览
+## 布局
 
-| 项 | 说明 |
-|----|------|
-| 监听 | 群 @我、全部单聊（需本机 `dws` 已登录） |
-| 门禁 | 可选：仅指定部门 + 工作/DIP/需求类才回复（默认部门关键字「云交付」） |
-| 分流 | DIP/S4/ECC/ECS、新功能（YJ2RQ/RJ2RQ）、澄清续聊 |
-| 媒体 | 图片下载到本地，写入 job 供 Agent Read |
-| 常驻 | macOS LaunchAgent / **Windows 计划任务** |
-| Cursor | `hooks.json` 注入工单 + stop 发回执 |
+| 路径 | 内容 |
+|------|------|
+| `src/` | 桥接、路由、门禁、IM 适配 |
+| `profiles/` | 业务配置。未设置环境变量时用 `yurun-tms.json` |
+| `data/` | inbox / state / media / 回执（不提交） |
+| `.cursor/hooks/` | Cursor 的 sessionStart / stop 薄入口 |
+| `scripts/macos` `scripts/windows` | 安装、状态、卸载 |
+| `docs/AGENT-PROMPTS.md` | Agent 按 phase 执行的说明 |
 
-## 安装到 Cursor 项目
+换一套业务：复制 `profiles/default.json` 为 `profiles/local.json`，或设置 `IM_BRIDGE_PROFILE`。
 
-1. 将本仓库 `.cursor/` 合并到你的项目根（或 clone 本仓后把业务代码放进同根目录）。
-2. 复制 `.cursor/hooks.json.example` 为 `.cursor/hooks.json`，或把其中 `sessionStart` / `stop` 条目合并进已有 hooks。
-3. 可选：复制 `.cursor/rules/dingtalk-agent-default.mdc` 到项目 `.cursor/rules/`。
+## 安装
+
+1. 把本仓库放在工作区根，或用 `IM_BRIDGE_WORKSPACE` 指向客户仓所在的总目录。
+2. 复制 `.cursor/hooks.json.example` 为 `.cursor/hooks.json`。
 
 ### macOS
 
 ```bash
 export DINGTALK_SELF_OPEN_ID="<你的 openDingTalkId>"
-export DWS_PROFILE=""   # 多 profile 时填写
-chmod +x .cursor/hooks/dingtalk-im-bridge/*.sh
-.cursor/hooks/dingtalk-im-bridge/install.sh
-cursor-agent login      # 或 install-cursor-agent.sh
+export DWS_PROFILE=""
+chmod +x scripts/macos/*.sh
+scripts/macos/install.sh
 ```
+
+`IM_BRIDGE_SELF_OPEN_ID` 与 `DINGTALK_SELF_OPEN_ID` 等价，前者优先。
 
 ### Windows
 
-见 **[docs/WINDOWS.md](docs/WINDOWS.md)**。简要：
+见 [docs/WINDOWS.md](docs/WINDOWS.md)。
 
 ```powershell
-cd .cursor\hooks\dingtalk-im-bridge
-Copy-Item env.local.example.ps1 env.local.ps1   # 填写 openId
-.\install-cursor-agent.ps1   # 可选
-.\install-windows.ps1
+cd scripts\windows
+Copy-Item env.example.ps1 env.local.ps1
+.\install.ps1
 ```
-
-关闭全自动：`DINGTALK_FULL_AUTO=0`（mac 重装 LaunchAgent；Windows 改 `env.local.ps1` 后重装计划任务）。
-
-## 目录说明
-
-- `.cursor/hooks/dingtalk-im-bridge/` — bridge、路由、门禁、安装脚本
-- `.cursor/hooks/dingtalk-pending-context.js` — sessionStart 注入
-- `.cursor/hooks/dingtalk-pending-reply.js` — stop 回钉钉
-- `docs/WINDOWS.md` — Windows 方案与排障
-
-详细运维见 [.cursor/hooks/dingtalk-im-bridge/README.md](.cursor/hooks/dingtalk-im-bridge/README.md)。
 
 ## 环境变量
 
 | 变量 | 含义 |
 |------|------|
-| `DINGTALK_SELF_OPEN_ID` | 必填，过滤自己消息 |
-| `DINGTALK_FULL_AUTO` | `0` 关闭 cursor-agent 后台跑 |
-| `DINGTALK_GATE_CLOUD_DEPT` | `0` 关闭部门门禁 |
-| `DINGTALK_GATE_WORK` | `0` 关闭「仅工作类回复」 |
-| `DINGTALK_REPLY_DEPT` | 部门名子串，默认 `云交付` |
+| `IM_BRIDGE_SELF_OPEN_ID` / `DINGTALK_SELF_OPEN_ID` | 必填，过滤自己的消息 |
+| `IM_BRIDGE_PROFILE` | profile 名，默认 `yurun-tms` |
+| `IM_BRIDGE_WORKSPACE` | Agent 工作区根，默认本仓库根 |
+| `IM_BRIDGE_FULL_AUTO` / `DINGTALK_FULL_AUTO` | `0` 关闭后台 Agent |
+| `IM_BRIDGE_GATE_DEPT` / `DINGTALK_GATE_CLOUD_DEPT` | `0` 关闭部门门禁 |
+| `IM_BRIDGE_GATE_WORK` / `DINGTALK_GATE_WORK` | `0` 关闭业务门禁 |
+| `IM_BRIDGE_GATE_LINKS` / `DINGTALK_GATE_LINKS` | `0` 关闭链接门禁 |
+| `DINGTALK_REPLY_DEPT` | 部门名子串，覆盖 profile |
 | `DINGTALK_AGENT_MODEL` | 默认 `composer-2.5` |
-| `CURSOR_AGENT_BIN` / `CURSOR_API_KEY` | CLI 路径或 API Key |
+| `CURSOR_AGENT_BIN` / `CURSOR_API_KEY` | Agent 可执行文件或 API Key |
 | `DWS_PROFILE` | dws profile |
-| `DINGTALK_LOG_DIR` | 覆盖默认日志目录 |
 
 ## 安全
 
-勿提交 `inbox/`、`state/`、`media/`、`pending-reply.json`、`env.local.ps1`；密钥不进 Git。睡眠/断网期间不会可靠收消息。
+不要提交 `data/`、`profiles/local.json`、`scripts/windows/env.local.ps1`。E2E 从环境变量读 openDingTalkId，不要写进源码。
 
 ## License
 
