@@ -1,0 +1,14 @@
+{
+  "name": "im-agent-bridge",
+  "version": "0.2.0",
+  "private": true,
+  "description": "IM 消息 → profile 分流 → 工单队列 → 本机 Agent → 回传 IM",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node src/bridge.js",
+    "test:routing": "node tests/routing.js"
+  }
+}

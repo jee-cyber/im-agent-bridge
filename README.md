@@ -1,6 +1,10 @@
-# IM → Agent 桥
+# im-agent-bridge
 
 钉钉 **@我 / 单聊** → 本机 **dws 监听** → 按 profile 分流 → 工单队列 → **本机 Agent** → 结果回钉钉。
+
+```bash
+git clone git@github.com:jee-cyber/im-agent-bridge.git
+```
 
 管道与具体 IDE 无关。当前执行器是 Cursor Agent，业务规则在 `profiles/`，不写进 `src/`。
 
